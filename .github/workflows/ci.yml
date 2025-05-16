@@ -1,0 +1,88 @@
+name: Archaeological Detection Pipeline CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, "3.10"]
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install GDAL dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gdal-bin libgdal-dev
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run tests with coverage
+      run: |
+        pytest --cov=src tests/
+    
+    - name: Upload coverage report
+      uses: codecov/codecov-action@v2
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: "3.10"
+    
+    - name: Install linting dependencies
+      run: |
+        pip install flake8 black isort
+    
+    - name: Check code formatting
+      run: |
+        black --check src tests
+        isort --check-only src tests
+    
+    - name: Lint with flake8
+      run: |
+        flake8 src tests --max-line-length=100 --extend-ignore=E203
+
+  build:
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: "3.10"
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+    
+    - name: Build package
+      run: python -m build
+    
+    - name: Upload package artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: dist
+        path: dist/
